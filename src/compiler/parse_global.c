@@ -3,6 +3,7 @@
 
 static Decl *parse_const_declaration(Context *context, Visibility visibility);
 static inline Decl *parse_func_definition(Context *context, Visibility visibility, bool is_interface);
+static inline Decl *parse_struct_declaration(Context *context, Visibility visibility);
 
 static bool context_next_is_path_prefix_start(Context *context)
 {
@@ -574,14 +575,23 @@ static inline TypeInfo *parse_base_type(Context *context)
 	{
 		case TOKEN_TYPE_IDENT:
 		case TOKEN_CT_TYPE_IDENT:
+			DEBUG_LOG("type identifier: %d", context->tok.type);
 			type_info = type_info_new(TYPE_INFO_IDENTIFIER, source_span_from_token_id(context->tok.id));
 			type_info->unresolved.name_loc = context->tok.id;
 			break;
 		case TYPE_TOKENS:
 			type_found = type_from_token(context->tok.type);
 			break;
+		case TOKEN_STRUCT:
+			DEBUG_LOG("likely anonymous struct found!\n");
+			// type_info = type_info_new(TYPE_INFO_IDENTIFIER, source_span_from_token_id(context->tok.id));
+			// type_info->unresolved.name_loc = context->tok.id;
+			Decl* structDecl = parse_struct_declaration(context, VISIBLE_MODULE);
+			printf("parsed anon struct");
+			break;
 		default:
 			// Special case: "virtual *"
+			DEBUG_LOG("default in parse_base_type, tok.type: %d", context->tok.type);
 			if (virtual && context->tok.type == TOKEN_STAR)
 			{
 				type_info = type_info_new(TYPE_INFO_IDENTIFIER, source_span_from_token_id(context->prev_tok));
@@ -1326,7 +1336,11 @@ static inline Decl *parse_struct_declaration(Context *context, Visibility visibi
 
 	TokenId name = context->tok.id;
 
-	if (!consume_type_name(context, type_name)) return poisoned_decl;
+	// if (!consume_type_name(context, type_name)) return poisoned_decl;
+	if (!consume_type_name(context, type_name)) {
+		// anonymous
+		// name = (TokenId) NULL;
+	}
 	Decl *decl = decl_new_with_type(name, decl_from_token(type), visibility);
 
 	if (!parse_attributes(context, &decl->attributes))

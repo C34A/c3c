@@ -99,8 +99,8 @@ jobs:
         cmake --build .
     - name: Build testproject
       run: |
-      cd resources/testprojct
-      ../../build/c3c build --debug-log
+        cd resources/testprojct
+        ../../build/c3c build --debug-log
     - name: run compiler tests
       run: |
         cd test

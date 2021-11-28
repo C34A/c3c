@@ -9,6 +9,7 @@
  * - Disallow jumping in and out of an expression block.
  */
 
+static bool sema_take_addr_of(Expr *inner);
 static inline bool sema_expr_analyse_binary(Context *context, Expr *expr);
 static inline bool sema_cast_rvalue(Context *context, Expr *expr);
 static Expr *expr_access_inline_member(Expr *parent, Decl *parent_decl);
@@ -79,6 +80,17 @@ static inline bool both_any_integer_or_integer_vector(Expr *left, Expr *right)
 	return type_is_integer(flatten_left->vector.base) && type_is_integer(flatten_right->vector.base);
 }
 
+Expr *expr_generate_decl(Decl *decl, Expr *assign)
+{
+	assert(decl->decl_kind == DECL_VAR);
+	assert(decl->var.init_expr == NULL);
+	Expr *expr_decl = expr_new(EXPR_DECL, decl->span);
+	expr_decl->decl_expr = decl;
+	if (!assign) assign = expr_new(EXPR_UNDEF, decl->span);
+	decl->var.init_expr = assign;
+	return expr_decl;
+}
+
 void expr_insert_addr(Expr *original)
 {
 	assert(original->resolve_status == RESOLVE_DONE);
@@ -97,11 +109,19 @@ void expr_insert_addr(Expr *original)
 
 Expr *expr_variable(Decl *decl)
 {
+	if (decl->resolve_status == RESOLVE_DONE)
+	{
+		Expr *expr = expr_new(EXPR_IDENTIFIER, decl->span);
+		expr->identifier_expr.decl = decl;
+		expr->resolve_status = RESOLVE_DONE;
+		expr->type = decl->type;
+		return expr;
+	}
 	Expr *expr = expr_new(EXPR_IDENTIFIER, decl->span);
-	expr->identifier_expr.decl = decl;
-	expr->resolve_status = RESOLVE_DONE;
-	expr->type = decl->type;
+	expr->identifier_expr.identifier = decl->name_token;
+	expr->resolve_status = RESOLVE_NOT_DONE;
 	return expr;
+
 }
 
 static inline bool expr_unary_addr_is_constant_eval(Expr *expr, ConstantEvalKind eval_kind)
@@ -334,6 +354,7 @@ bool expr_is_constant_eval(Expr *expr, ConstantEvalKind eval_kind)
 			if (expr->slice_expr.end && !expr_is_constant_eval(expr->slice_expr.end, CONSTANT_EVAL_FOLDABLE)) return false;
 			return expr_is_constant_eval(expr->slice_expr.expr, eval_kind);
 		case EXPR_SUBSCRIPT:
+		case EXPR_SUBSCRIPT_ADDR:
 			if (!expr_is_constant_eval(expr->subscript_expr.index, eval_kind)) return false;
 			expr = expr->subscript_expr.expr;
 			goto RETRY;
@@ -385,26 +406,30 @@ bool expr_is_constant_eval(Expr *expr, ConstantEvalKind eval_kind)
 
 void expr_insert_deref(Expr *original)
 {
-	assert(original->resolve_status == RESOLVE_DONE);
-	Type *no_fail = type_no_fail(original->type);
-	assert(no_fail->canonical->type_kind == TYPE_POINTER);
-
-	// 1. Assume *(&x) => x
+	// Assume *(&x) => x
 	if (original->expr_kind == EXPR_UNARY && original->unary_expr.operator == UNARYOP_ADDR)
 	{
 		*original = *original->unary_expr.expr;
 		return;
 	}
 
-	// 2. Only fold to the canonical type if it wasn't a pointer.
-	Type *pointee = no_fail->type_kind == TYPE_POINTER ? no_fail->pointer : no_fail->canonical->pointer;
-
-	// 3. Allocate our new and create our new inner, and overwrite the original.
+	// Allocate our new and create our new inner, and overwrite the original.
 	Expr *inner = expr_copy(original);
 	original->expr_kind = EXPR_UNARY;
-	original->type = type_get_opt_fail(pointee, IS_FAILABLE(inner));
+	original->type = NULL;
 	original->unary_expr.operator = UNARYOP_DEREF;
 	original->unary_expr.expr = inner;
+
+	// In the case the original is already resolved, we want to resolve the deref as well.
+	if (original->resolve_status == RESOLVE_DONE)
+	{
+		Type *no_fail  = type_no_fail(inner->type);
+		assert(no_fail->canonical->type_kind == TYPE_POINTER);
+
+		// Only fold to the canonical type if it wasn't a pointer.
+		Type *pointee = no_fail->type_kind == TYPE_POINTER ? no_fail->pointer : no_fail->canonical->pointer;
+		original->type = type_get_opt_fail(pointee, IS_FAILABLE(inner));
+	}
 }
 
 
@@ -1557,7 +1582,7 @@ static bool sema_check_stmt_compile_time(Context *context, Ast *ast)
 	}
 }
 
-static bool sema_expr_analyse_macro_call(Context *context, Expr *call_expr, Expr *struct_var, Decl *decl, bool failable)
+bool sema_expr_analyse_macro_call(Context *context, Expr *call_expr, Expr *struct_var, Decl *decl, bool failable)
 {
 	assert(decl->decl_kind == DECL_MACRO);
 
@@ -2145,9 +2170,9 @@ static inline bool sema_expr_analyse_call(Context *context, Expr *expr)
 			decl = func_expr->access_expr.ref;
 			if (decl->decl_kind == DECL_FUNC || decl->decl_kind == DECL_MACRO)
 			{
-				expr_insert_addr(func_expr->access_expr.parent);
-				struct_var = func_expr->access_expr.parent;
 				macro = decl->decl_kind == DECL_MACRO;
+				if (!macro) expr_insert_addr(func_expr->access_expr.parent);
+				struct_var = func_expr->access_expr.parent;
 			}
 			break;
 		case EXPR_MACRO_EXPANSION:
@@ -2270,9 +2295,10 @@ static Type *sema_expr_find_indexable_type_recursively(Type **type, Expr **paren
 		return inner_type;
 	}
 }
-static inline bool sema_expr_analyse_subscript(Context *context, Expr *expr)
+
+static inline bool sema_expr_analyse_subscript(Context *context, Expr *expr, bool is_addr)
 {
-	assert(expr->expr_kind == EXPR_SUBSCRIPT);
+	assert(expr->expr_kind == EXPR_SUBSCRIPT || expr->expr_kind == EXPR_SUBSCRIPT_ADDR);
 
 	// 1. Evaluate the expression to index.
 	Expr *subscripted = expr->subscript_expr.expr;
@@ -2285,7 +2311,6 @@ static inline bool sema_expr_analyse_subscript(Context *context, Expr *expr)
 	// 3. Check failability due to value.
 	bool failable = IS_FAILABLE(subscripted);
 
-
 	Type *underlying_type = type_flatten(subscripted->type);
 	Type *current_type = underlying_type;
 	Expr *current_expr = subscripted;
@@ -2293,6 +2318,11 @@ static inline bool sema_expr_analyse_subscript(Context *context, Expr *expr)
 	// 4. If we are indexing into a complist
 	if (current_type == type_complist)
 	{
+		if (is_addr)
+		{
+			SEMA_ERROR(subscripted, "You need to use && to take the address of a temporary.");
+			return false;
+		}
 		// 4a. This may either be an initializer list or a CT value
 		while (current_expr->expr_kind == EXPR_CT_IDENT) current_expr = current_expr->ct_ident_expr.decl->var.init_expr;
 
@@ -2351,13 +2381,37 @@ static inline bool sema_expr_analyse_subscript(Context *context, Expr *expr)
 	}
 
 	if (!sema_cast_rvalue(context, current_expr)) return false;
+
 	Type *inner_type = sema_expr_find_indexable_type_recursively(&current_type, &current_expr);
+	if (!inner_type)
+	{
+		Decl *decl = NULL;
+		if (is_addr) decl = sema_find_operator(context, current_expr, kw_operator_element_at_ref);
+		if (!decl)
+		{
+			decl = sema_find_operator(context, current_expr, kw_operator_element_at);
+			if (decl && is_addr)
+			{
+				SEMA_ERROR(expr, "'%s' is not defined for %s, so you need && to take the address of the temporary.",
+						   kw_operator_element_at_ref, type_quoted_error_string(current_expr->type));
+				return false;
+			}
+		}
+		if (decl)
+		{
+			expr->expr_kind = EXPR_CALL;
+			Expr **args = NULL;
+			vec_add(args, index);
+			expr->call_expr = (ExprCall){ .func_ref = decl, .arguments = args };
+			expr->call_expr.is_type_method = true;
+			return sema_expr_analyse_macro_call(context, expr, current_expr, decl, failable);
+		}
+	}
 	if (!inner_type)
 	{
 		SEMA_ERROR(subscripted, "Cannot index '%s'.", type_to_error_string(subscripted->type));
 		return false;
 	}
-
 
 	// Cast to an appropriate type for index.
 	if (!expr_cast_to_index(index)) return false;
@@ -2366,6 +2420,7 @@ static inline bool sema_expr_analyse_subscript(Context *context, Expr *expr)
 	if (!expr_check_index_in_range(context, current_type, index, false, expr->subscript_expr.from_back)) return false;
 
 	expr->subscript_expr.expr = current_expr;
+	if (is_addr) inner_type = type_get_ptr(inner_type);
 	expr->type = type_get_opt_fail(inner_type, failable);
 	return true;
 }
@@ -2467,7 +2522,7 @@ static inline bool sema_expr_analyse_group(Context *context, Expr *expr)
 }
 
 
-static inline void expr_rewrite_to_int_const(Expr *expr_to_rewrite, Type *type, uint64_t value, bool narrowable)
+void expr_rewrite_to_int_const(Expr *expr_to_rewrite, Type *type, uint64_t value, bool narrowable)
 {
 	expr_to_rewrite->expr_kind = EXPR_CONST;
 	expr_const_set_int(&expr_to_rewrite->const_expr, value, type->canonical->type_kind);
@@ -5123,6 +5178,11 @@ static bool sema_expr_analyse_addr(Context *context, Expr *expr)
 			// We want to collapse any grouping here.
 			expr_replace(inner, inner->inner_expr);
 			goto REDO;
+		case EXPR_SUBSCRIPT:
+			inner->expr_kind = EXPR_SUBSCRIPT_ADDR;
+			if (!sema_analyse_expr_lvalue(context, inner)) return false;
+			expr_replace(expr, inner);
+			return true;
 		default:
 		{
 			if (!sema_analyse_expr_lvalue(context, inner)) return expr_poison(expr);
@@ -6609,7 +6669,9 @@ static inline bool sema_analyse_expr_dispatch(Context *context, Expr *expr)
 		case EXPR_CALL:
 			return sema_expr_analyse_call(context, expr);
 		case EXPR_SUBSCRIPT:
-			return sema_expr_analyse_subscript(context, expr);
+			return sema_expr_analyse_subscript(context, expr, false);
+		case EXPR_SUBSCRIPT_ADDR:
+			return sema_expr_analyse_subscript(context, expr, true);
 		case EXPR_GROUP:
 			return sema_expr_analyse_group(context, expr);
 		case EXPR_BITACCESS:

@@ -256,13 +256,13 @@ typedef struct
 typedef struct
 {
 	Type *base;
-	TypeSize len;
+	ArraySize len;
 } TypeArray;
 
 typedef struct
 {
 	Type *base;
-	TypeSize len;
+	ArraySize len;
 } TypeVector;
 
 typedef struct
@@ -987,6 +987,7 @@ typedef struct
 {
 	bool has_break : 1;
 	bool no_exit : 1;
+	bool skip_first : 1;
 	Decl *label;
 } FlowCommon;
 
@@ -1553,6 +1554,9 @@ extern const char *kw_ensure;
 extern const char *kw_inline;
 extern const char *kw_inf;
 extern const char *kw_iterator;
+extern const char *kw_operator_element_at;
+extern const char *kw_operator_element_at_ref;
+extern const char *kw_operator_len;
 extern const char *kw_len;
 extern const char *kw_next;
 extern const char *kw_nan;
@@ -1853,6 +1857,7 @@ bool expr_const_compare(const ExprConst *left, const ExprConst *right, BinaryOp 
 bool expr_const_will_overflow(const ExprConst *expr, TypeKind kind);
 ArraySize expr_const_list_size(const ConstInitializer *list);
 
+Expr *expr_generate_decl(Decl *decl, Expr *assign);
 void expr_insert_addr(Expr *original);
 void expr_insert_deref(Expr *expr);
 Expr *expr_variable(Decl *decl);

@@ -55,4 +55,7 @@ void c_abi_func_create(FunctionSignature *signature);
 AttributeType sema_analyse_attribute(Context *context, Attr *attr, AttributeDomain domain);
 bool expr_is_ltype(Expr *expr);
 
+Decl *sema_find_operator(Context *context, Expr *expr, const char *kw);
 bool sema_analyse_expr_lvalue(Context *context, Expr *expr);
+bool sema_expr_analyse_macro_call(Context *context, Expr *call_expr, Expr *struct_var, Decl *decl, bool failable);
+void expr_rewrite_to_int_const(Expr *expr_to_rewrite, Type *type, uint64_t value, bool narrowable);

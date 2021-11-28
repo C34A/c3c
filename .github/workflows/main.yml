@@ -74,9 +74,9 @@ jobs:
 
   build-windows-msvc:
     runs-on: windows-latest
-    strategy:
-      matrix:
-        build_type: Release
+    # strategy:
+    #   matrix:
+    #     build_type: Release
     steps:
     - name: compile LLVM
       run: |

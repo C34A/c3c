@@ -72,6 +72,40 @@ jobs:
           cd test
           python3 src/tester.py ../build/c3c.exe test_suite/
 
+  build-windows-msvc:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        build_type: Release
+    steps:
+    - name: get and build LLVM
+      run: |
+        cd /
+        git clone https://github.com/llvm/llvm-project.git llvm
+        cd llvm
+        git checkout tags/llvmorg-13.0.0
+        cd llvm
+        mkdir build
+        cd build
+        cmake .. -DLLVM_ENABLE_PROJECTS="clang;lld" -DLLVM_TARGETS_TO_BUILD="ARM;AArch64;RISCV;WebAssembly;X86" -Thost=x64
+        cmake --build . --target ALL_BUILD --config Release -- /nologo /verbosity:minimal
+    - name: clone
+      uses: actions/checkout@v2
+    - name: CMake
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DLLVM_DIR=C:\llvm\llvm\build\lib\cmake\llvm
+        cmake --build .
+    - name: Build testproject
+      run: |
+      cd resources/testprojct
+      ../../build/c3c build --debug-log
+    - name: run compiler tests
+      run: |
+        cd test
+        python src/tester.py ../build/c3c.exe test_suite/
+
   build-linux:
     runs-on: ubuntu-latest
     strategy:

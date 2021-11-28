@@ -78,7 +78,7 @@ jobs:
       matrix:
         build_type: Release
     steps:
-    - name: get and build LLVM
+    - name: compile LLVM
       run: |
         cd /
         git clone https://github.com/llvm/llvm-project.git llvm

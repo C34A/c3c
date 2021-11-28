@@ -89,7 +89,7 @@ jobs:
         cd build
         cmake .. -DLLVM_ENABLE_PROJECTS="clang;lld" -DLLVM_TARGETS_TO_BUILD="ARM;AArch64;RISCV;WebAssembly;X86" -Thost=x64
         cmake --build . --target ALL_BUILD --config Release -- /nologo /verbosity:minimal
-    - name: clone
+    - name: checkout
       uses: actions/checkout@v2
     - name: CMake
       run: |

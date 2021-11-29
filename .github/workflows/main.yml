@@ -94,6 +94,7 @@ jobs:
         dir Debug
         dir lib
         dir lib/cmake
+        dir lib/cmake/llvm
     - name: checkout
       uses: actions/checkout@v2
     - name: CMake
@@ -101,7 +102,7 @@ jobs:
         mkdir build
         cd build
         cmake .. -DLLVM_DIR=D:\llvm\llvm\build\lib\cmake\llvm
-        cmake --build .
+        cmake --build . --target ALL_BUILD --config Release -- /nologo /verbosity:minimal
     - name: Build testproject
       run: |
         cd resources/testprojct

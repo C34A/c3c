@@ -101,8 +101,8 @@ jobs:
       run: |
         mkdir build
         cd build
-        cmake .. -DLLVM_DIR=D:\llvm\llvm\build\lib\cmake\llvm
-    - name: usage
+        cmake .. -DLLVM_DIR=D:\llvm\llvm\build\lib\cmake\llvm -DLLVM_LINK_DIR=D:\llvm\llvm\build\Release\lib
+    - name: disk usage
       run: |
         cmake .. -DLLVM_DIR=D:\llvm\llvm\build\lib\cmake\llvm
     - name: CMake build

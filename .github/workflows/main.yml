@@ -102,6 +102,11 @@ jobs:
         mkdir build
         cd build
         cmake .. -DLLVM_DIR=D:\llvm\llvm\build\lib\cmake\llvm
+    - name: usage
+      run: |
+        cmake .. -DLLVM_DIR=D:\llvm\llvm\build\lib\cmake\llvm
+    - name: CMake build
+      run: |
         cmake --build . --target ALL_BUILD --config Release -- /nologo /verbosity:minimal
     - name: Build testproject
       run: |

@@ -107,6 +107,7 @@ jobs:
         Get-CimInstance -ClassName Win32_LogicalDisk
     - name: CMake build
       run: |
+        cd build
         cmake --build . --target ALL_BUILD --config Release -- /nologo /verbosity:minimal
     - name: Build testproject
       run: |

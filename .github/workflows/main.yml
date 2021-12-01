@@ -104,7 +104,7 @@ jobs:
         cmake .. -DLLVM_DIR=D:\llvm\llvm\build\lib\cmake\llvm -DLLVM_LINK_DIR=D:\llvm\llvm\build\Release\lib
     - name: disk usage
       run: |
-        cmake .. -DLLVM_DIR=D:\llvm\llvm\build\lib\cmake\llvm
+        Get-CimInstance -ClassName Win32_LogicalDisk
     - name: CMake build
       run: |
         cmake --build . --target ALL_BUILD --config Release -- /nologo /verbosity:minimal

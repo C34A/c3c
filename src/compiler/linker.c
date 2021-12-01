@@ -6,11 +6,15 @@
 #include "utils/find_msvc.h"
 #endif
 
+#if USE_LLD
+
 extern bool llvm_link_elf(const char **args, int arg_count, const char** error_string);
 extern bool llvm_link_macho(const char **args, int arg_count, const char** error_string);
 extern bool llvm_link_coff(const char **args, int arg_count, const char** error_string);
 extern bool llvm_link_wasm(const char **args, int arg_count, const char** error_string);
 extern bool llvm_link_mingw(const char **args, int arg_count, const char** error_string);
+
+#endif
 
 static void add_files(const char ***args, const char **files_to_link, unsigned file_count)
 {
@@ -67,6 +71,9 @@ static void prepare_msys2_linker_flags(const char ***args, const char **files_to
 
 static bool link_exe(const char *output_file, const char **files_to_link, unsigned file_count)
 {
+#if !USE_LLD
+	error_exit("link_exe was called but c3c wasn't compiled with USE_LLD enabled!");
+#else
 	const char **args = NULL;
 #ifdef _MSC_VER
 	if (platform_target.os == OS_TYPE_WIN32)
@@ -98,14 +105,6 @@ static bool link_exe(const char *output_file, const char **files_to_link, unsign
 			if (NULL == getenv("MSYSTEM"))
 			{
 				// "native" windows
-
-
-				// find paths to library directories.
-				// ex:
-				// C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools\\VC\\Tools\\MSVC\\14.28.29910\\lib\\x64
-				// C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools\\VC\\Tools\\MSVC\\14.28.29910\\atlmfc\\lib\\x64
-				// C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.19041.0\\ucrt\\x64
-				// C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.19041.0\\um\\x64
 #ifdef _MSC_VER
 				windows_paths = get_windows_link_paths();
 				vec_add(args, join_strings((const char* []) { "-libpath:", windows_paths.windows_sdk_um_library_path }, 2));
@@ -241,6 +240,7 @@ static bool link_exe(const char *output_file, const char **files_to_link, unsign
 		error_exit("Failed to create an executable: %s", error);
 	}
 	return true;
+#endif
 }
 
 bool obj_format_linking_supported(ObjectFormatType format_type)
@@ -282,9 +282,38 @@ const char *concat_string_parts(const char **args)
 	return output;
 }
 
-void platform_linker(const char *output_file, const char **files, unsigned file_count)
-{
-	const char **parts = NULL;
+char* platform_linker_setup_windows(const char* output_file, const char** files, unsigned file_count) {
+	// on non-windows this will make a file called "nul"... hopefully that isn't a problem
+	if (system("lld-link -help > nul") != 0) {
+		error_exit("Unable to link: lld-link not found in %PATH%.\n");
+	}
+
+	const char** parts = NULL;
+	vec_add(parts, "lld-link");
+
+	VECEACH(active_target.link_args, i) {
+		vec_add(parts, active_target.link_args[i]);
+	}
+
+	WindowsLinkPathsUTF8 windows_paths = get_windows_link_paths();
+	vec_add(parts, join_strings((const char* []) { "\"-libpath:", windows_paths.windows_sdk_um_library_path, "\"" }, 3));
+	vec_add(parts, join_strings((const char* []) { "\"-libpath:", windows_paths.windows_sdk_ucrt_library_path, "\"" }, 3));
+	vec_add(parts, join_strings((const char* []) { "\"-libpath:", windows_paths.vs_library_path, "\"" }, 3));
+
+	vec_add(parts, "-defaultlib:libcmt");
+	vec_add(parts, "-nologo");
+
+	vec_add(parts, join_strings((const char* []) { "/out:", output_file }, 2));
+
+	for (unsigned i = 0; i < file_count; i++) {
+		vec_add(parts, files[i]);
+	}
+
+	return concat_string_parts(parts);
+}
+
+char* platform_linker_setup_other(const char* output_file, const char** files, unsigned file_count) {
+	const char** parts = NULL;
 	vec_add(parts, "cc");
 	VECEACH(active_target.link_args, i)
 	{
@@ -292,18 +321,18 @@ void platform_linker(const char *output_file, const char **files, unsigned file_
 	}
 	switch (platform_target.pie)
 	{
-		case PIE_DEFAULT:
-			UNREACHABLE
-		case PIE_NONE:
-			vec_add(parts, "-fno-PIE");
-			vec_add(parts, "-fno-pie");
-			break;
-		case PIE_SMALL:
-			vec_add(parts, "-fpie");
-			break;
-		case PIE_BIG:
-			vec_add(parts, "-fPIE");
-			break;
+	case PIE_DEFAULT:
+		UNREACHABLE
+	case PIE_NONE:
+		vec_add(parts, "-fno-PIE");
+		vec_add(parts, "-fno-pie");
+		break;
+	case PIE_SMALL:
+		vec_add(parts, "-fpie");
+		break;
+	case PIE_BIG:
+		vec_add(parts, "-fPIE");
+		break;
 	}
 	vec_add(parts, "-o");
 	vec_add(parts, output_file);
@@ -312,13 +341,24 @@ void platform_linker(const char *output_file, const char **files, unsigned file_
 		vec_add(parts, files[i]);
 	}
 	vec_add(parts, "-lm");
-	const char *output = concat_string_parts(parts);
+	return concat_string_parts(parts);
+}
+
+void platform_linker(const char *output_file, const char **files, unsigned file_count, ArchOsTarget target)
+{
+	char* output;
+	if (platform_target.os == OS_TYPE_WIN32) {
+		output = platform_linker_setup_windows(output_file, files, file_count);
+	} else {
+		output = platform_linker_setup_other(output_file, files, file_count);
+	}
 	if (system(output) != 0)
 	{
 		error_exit("Failed to link executable '%s' using command '%s'.\n", output_file, output);
 	}
 	printf("Program linked to executable '%s'.\n", output_file);
 }
+
 bool linker(const char *output_file, const char **files, unsigned file_count)
 {
 	return link_exe(output_file, files, file_count);

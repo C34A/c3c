@@ -443,9 +443,12 @@ void compiler_compile(void)
 
 	if (create_exe)
 	{
-		if (active_target.arch_os_target == ARCH_OS_TARGET_DEFAULT)
+		if (
+			active_target.arch_os_target == ARCH_OS_TARGET_DEFAULT ||
+			active_target.arch_os_target == X64_WINDOWS ||
+			active_target.arch_os_target == X86_WINDOWS)
 		{
-			platform_linker(active_target.name, obj_files, output_file_count);
+			platform_linker(active_target.name, obj_files, output_file_count, active_target.arch_os_target);
 		}
 		else
 		{

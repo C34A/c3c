@@ -72,6 +72,8 @@ typedef enum
 	MINGW
 } ObjFormat;
 
+#if USE_LLD
+
 static bool llvm_link(ObjFormat format, const char **args, int arg_count, const char** error_string)
 {
 	std::vector<const char*> arg_vector = std::vector<const char *>(arg_count + 1);
@@ -108,6 +110,7 @@ static bool llvm_link(ObjFormat format, const char **args, int arg_count, const 
 	return false;
 }
 
+#endif
 
 extern "C" {
 
@@ -150,6 +153,8 @@ extern "C" {
 		return wrap(llvm::ConstantExpr::getInBoundsGetElementPtr(llvm::unwrap(Ty), Val, IdxList));
 	}
 
+#if USE_LLD
+
 bool llvm_link_elf(const char **args, int arg_count, const char** error_string)
 {
 	return llvm_link(ELF, args, arg_count, error_string);
@@ -175,6 +180,6 @@ bool llvm_link_mingw(const char **args, int arg_count, const char** error_string
 	return llvm_link(MINGW, args, arg_count, error_string);
 }
 
-
+#endif
 
 }

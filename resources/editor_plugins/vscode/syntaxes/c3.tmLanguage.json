@@ -19,11 +19,11 @@
 				},
 				{
 					"name": "keyword",
-					"match": "\\b(do|else|for|goto|if|return|null|macro)\\b"
+					"match": "\\b(do|else|for|goto|if|return|null|macro|defer)\\b"
 				},
 				{
 					"name": "keyword",
-					"match": "\\b(define|local|errtype|module|as|import)\\b"
+					"match": "\\b(define|local|errtype|module|as|import|asm)\\b"
 				},
 				{
 					"name": "keyword",
@@ -31,7 +31,7 @@
 				},
 				{
 					"name": "keyword",
-					"match": "\\b(while|fn|nil|next|in|$for|$case)\\b"
+					"match": "\\b(while|fn|nil|nextcase|in|static|$for|$case)\\b"
 				},
 				{
 					"name": "keyword",
@@ -40,6 +40,18 @@
 				{
 					"name": "keyword",
 					"match": "\\b(true|false)\\b"
+				},
+				{
+					"name": "keyword",
+					"match": "\\b(typeid|typeof|var)\\b"
+				},
+				{
+					"name": "support.class",
+					"match": "\\b(struct|union|enum)\\b"
+				},
+				{
+					"name": "keyword.other",
+					"match": "\\b(alias|attribute)\\b"
 				}
 			]
 		},
@@ -134,8 +146,20 @@
 			]
 		},
 		"types": {
-			"name": "storage.type",
-			"match": "\\b(double|usize|type|Type|bool|char|enum|float|int|uint|long|ulong|short|ushort|struct|void)\\b"
+			"patterns": [
+				{
+					"name": "support.type.primative",
+					"match": "\\b(double|usize|type|Type|bool|char|float|int|uint|long|ulong|short|ushort|void)\\b"
+				},
+                {
+                    "name": "entity.name.type",
+                    "match": "_*[A-Z][A-Z_0-9]*[a-z][a-zA-Z_0-9]*"
+                },
+				{
+					"name": "variable.other.constant",
+					"match": "_*[A-Z][A-Z_0-9]*"
+				}
+			]
 		},
 		"support": {
 			"patterns": [
@@ -150,8 +174,16 @@
 			]
 		},
 		"operators": {
-			"name": "keyword.operator",
-			"match": "(\\+|-|\\.|%|&|\\|(?!})|=|<|>|!|\\^|\\*|/|::)=?"
+			"patterns": [
+				{
+					"name": "keyword.operator",
+					"match": "(\\+|-|\\.|%|&|\\|(?!})|=|<|>|!|\\^|\\*|/)=?"
+				},
+				{
+					"name": "keyword.operator",
+					"match": "(::|:|\\?)"
+				}
+			]
 		}
 	},
 	"scopeName": "source.c3"

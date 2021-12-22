@@ -150,6 +150,14 @@
 				{
 					"name": "support.type.primative",
 					"match": "\\b(double|usize|type|Type|bool|char|float|int|uint|long|ulong|short|ushort|void)\\b"
+				},
+                {
+                    "name": "entity.name.type",
+                    "match": "_*[A-Z][A-Z_0-9]*[a-z][a-zA-Z_0-9]*"
+                },
+				{
+					"name": "variable.other.constant",
+					"match": "_*[A-Z][A-Z_0-9]*"
 				}
 			]
 		},

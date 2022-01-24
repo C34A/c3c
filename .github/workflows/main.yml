@@ -76,6 +76,8 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
+        #todo: add a debug configuration. This needs to not only change the cmake config,
+        #      but also download, extract, etc the debug version of the LLVM binaries.
         build_type: [Release]
     steps:
       - uses: actions/checkout@v2

@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ master, dev, ci_testing, windows-ci-new ]
+    branches: [ master, dev, ci_testing ]
   pull_request:
     branches: [ master ]
 
@@ -76,7 +76,7 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        build_type: [Release, Debug]
+        build_type: [Release]
     steps:
       - uses: actions/checkout@v2
       - name: Download LLVM binaries

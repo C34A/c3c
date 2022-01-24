@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ master, dev, ci_testing ]
+    branches: [ master, dev, ci_testing, windows-ci-new ]
   pull_request:
     branches: [ master ]
 
@@ -71,6 +71,33 @@ jobs:
         run: |
           cd test
           python3 src/tester.py ../build/c3c.exe test_suite/
+
+  build-windows-msvc:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        build_type: [Release, Debug]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Download LLVM binaries
+        run: |
+          mkdir llvm
+          Start-BitsTransfer -Source https://github.com/c3lang/win-llvm/releases/download/llvm-13-rebuild/llvm-13.0.0-windows-amd64-msvc16-msvcrt.7z -Destination ./llvm/llvm-13.0.0-windows-amd64-msvc16-msvcrt.7z
+          7z.exe x llvm/llvm-13.0.0-windows-amd64-msvc16-msvcrt.7z -ollvm/
+      - name: CMake
+        run: |
+          mkdir build
+          cd build
+          cmake .. -DLLVM_DIR="llvm\llvm-13.0.0-windows-amd64-msvc16-msvcrt\lib\cmake\llvm\"
+          cmake --build . --target ALL_BUILD --config ${{ matrix.build_type }} -- /nologo /verbosity:minimal /maxcpucount
+      - name: Build testproject
+        run: |
+          cd resources/testproject
+          ../../build/Release/c3c.exe build --debug-log
+      - name: Run compiler tests
+        run: |
+          cd test
+          python src/tester.py ../build/Release/c3c.exe test_suite/
 
   build-linux:
     runs-on: ubuntu-latest
